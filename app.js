@@ -13,15 +13,13 @@ function switchView(viewId) {
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => item.classList.remove('active'));
     
-    // Marca o botão clicado como ativo
     if(viewId === 'view-upload') navItems[0].classList.add('active');
     if(viewId === 'view-dashboard') {
         navItems[1].classList.add('active');
-        initDashboard(); // Recarrega os dados fresquinhos sempre que abrir o dashboard
+        initDashboard(); 
     }
 }
 
-// 3. Função Auxiliar de Leitura de Excel
 function readExcel(file) {
     return new Promise((resolve, reject) => {
         if (!file) { resolve([]); return; }
@@ -144,7 +142,7 @@ document.getElementById('btnProcMatriculas').addEventListener('click', async () 
 });
 
 // ==========================================
-// MÓDULO 2: UPLOAD CSAT (Independente)
+// MÓDULO 2: UPLOAD CSAT 
 // ==========================================
 document.getElementById('btnProcCsat').addEventListener('click', async () => {
     const fileCsat = document.getElementById('fileCsat').files[0];
@@ -329,6 +327,21 @@ function renderizarTabela(dadosMissoes) {
             <td class="highlight-col"><span class="big-percent" style="color:#16a34a">${pcCsatTotal}%</span></td>
         </tr>
     `;
+}
+
+function popularFiltroMissoes() {
+    const filtro = document.getElementById('filtro-missao');
+    filtro.innerHTML = '<option value="todos">Geral (Todos)</option>';
+    const missoesUnicas = [...new Set(rawData.map(r => r.missao).filter(Boolean))];
+    missoesUnicas.forEach(missao => {
+        const option = document.createElement('option');
+        option.value = missao; option.textContent = missao;
+        filtro.appendChild(option);
+    });
+    
+    const novoFiltro = filtro.cloneNode(true);
+    filtro.parentNode.replaceChild(novoFiltro, filtro);
+    novoFiltro.addEventListener('change', (e) => processarRanking(e.target.value));
 }
 
 function processarRanking(missaoFiltro) {
