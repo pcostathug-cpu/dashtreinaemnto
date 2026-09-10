@@ -273,26 +273,45 @@ function renderizarTabela(dadosMissoes) {
     let allCpsConcluidosGeral = new Set();
 
     dadosMissoes.forEach(missao => {
-        totLidEleg += missao.liderancaElegivel; totLidConc += missao.liderancaConcluido;
-        totBackEleg += missao.backofficeElegivel; totBackConc += missao.backofficeConcluido;
-        totCsatPromoters += missao.csatPromoters; totCsatGeral += missao.csatTotal;
+        totLidEleg += missao.liderancaElegivel; 
+        totLidConc += missao.liderancaConcluido;
+        totBackEleg += missao.backofficeElegivel; 
+        totBackConc += missao.backofficeConcluido;
+        totCsatPromoters += missao.csatPromoters; 
+        totCsatGeral += missao.csatTotal;
         missao.cpsConcluidos.forEach(cp => allCpsConcluidosGeral.add(cp));
 
         const pcLid = missao.liderancaElegivel ? ((missao.liderancaConcluido / missao.liderancaElegivel) * 100).toFixed(2) : '-';
         const pcBack = missao.backofficeElegivel ? ((missao.backofficeConcluido / missao.backofficeElegivel) * 100).toFixed(2) : '-';
         const totElegGeral = missao.liderancaElegivel + missao.backofficeElegivel;
-        const pcGeral = totElegGeral ? (((missao.liderancaConcluido + missao.backofficeConcluido) / totElegGeral) * 100).toFixed(2) : '0.00';
+        const totConcGeral = missao.liderancaConcluido + missao.backofficeConcluido;
+        const pcGeral = totElegGeral ? ((totConcGeral / totElegGeral) * 100).toFixed(2) : '0.00';
         const pcCp = totalCPsDistintos ? ((missao.cpsConcluidos.size / totalCPsDistintos) * 100).toFixed(2) : '0.00';
         const pcCsat = missao.csatTotal ? ((missao.csatPromoters / missao.csatTotal) * 100).toFixed(2) : '-';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="missao-nome">${missao.nome}</td>
-            <td class="col-lideranca"><span class="big-percent">${pcLid !== '-' ? pcLid + '%' : '-'}</span></td>
-            <td class="col-backoffice"><span class="big-percent">${pcBack !== '-' ? pcBack + '%' : '-'}</span></td>
-            <td><span class="big-percent">${pcGeral}%</span></td>
-            <td class="dotted-col"><span class="big-percent">${pcCp}%</span></td>
-            <td class="highlight-col"><span class="big-percent" style="color:#16a34a">${pcCsat !== '-' ? pcCsat + '%' : '-'}</span><span class="small-count">${missao.csatTotal} avaliações</span></td>
+            <td class="col-lideranca">
+                <span class="big-percent">${pcLid !== '-' ? pcLid + '%' : '-'}</span>
+                ${missao.liderancaElegivel > 0 ? `<span class="small-count">${missao.liderancaConcluido} | ${missao.liderancaElegivel}</span>` : ''}
+            </td>
+            <td class="col-backoffice">
+                <span class="big-percent">${pcBack !== '-' ? pcBack + '%' : '-'}</span>
+                ${missao.backofficeElegivel > 0 ? `<span class="small-count">${missao.backofficeConcluido} | ${missao.backofficeElegivel}</span>` : ''}
+            </td>
+            <td>
+                <span class="big-percent">${pcGeral}%</span>
+                <span class="small-count">${totConcGeral} | ${totElegGeral}</span>
+            </td>
+            <td class="dotted-col">
+                <span class="big-percent">${pcCp}%</span>
+                <span class="small-count">${missao.cpsConcluidos.size} | ${totalCPsDistintos} CP's</span>
+            </td>
+            <td class="highlight-col">
+                <span class="big-percent" style="color:#16a34a">${pcCsat !== '-' ? pcCsat + '%' : '-'}</span>
+                <span class="small-count">${missao.csatTotal} avaliações</span>
+            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -310,21 +329,6 @@ function renderizarTabela(dadosMissoes) {
             <td class="highlight-col"><span class="big-percent" style="color:#16a34a">${pcCsatTotal}%</span></td>
         </tr>
     `;
-}
-
-function popularFiltroMissoes() {
-    const filtro = document.getElementById('filtro-missao');
-    filtro.innerHTML = '<option value="todos">Geral (Todos)</option>';
-    const missoesUnicas = [...new Set(rawData.map(r => r.missao).filter(Boolean))];
-    missoesUnicas.forEach(missao => {
-        const option = document.createElement('option');
-        option.value = missao; option.textContent = missao;
-        filtro.appendChild(option);
-    });
-    // Remove listeners duplicados se a tela recarregar
-    const novoFiltro = filtro.cloneNode(true);
-    filtro.parentNode.replaceChild(novoFiltro, filtro);
-    novoFiltro.addEventListener('change', (e) => processarRanking(e.target.value));
 }
 
 function processarRanking(missaoFiltro) {
