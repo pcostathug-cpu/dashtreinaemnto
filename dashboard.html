@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Aderência - Gestão de Pessoas</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="dashboard.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container" id="relatorio-export">
+        
+        <header class="top-header">
+            <div class="header-left">
+                <div class="logo-area">
+                    <img src="https://sfjrhiwhphlkozjktupi.supabase.co/storage/v1/object/sign/content/Artboard%2044@4x.png?token=eyJraWQiOiIxYzI3ZjY0Mi02ZWNhLTRmODgtOTVjOC1jZmM2MDljODM4NjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJjb250ZW50L0FydGJvYXJkIDQ0QDR4LnBuZyIsInNjb3BlIjoiZG93bmxvYWQiLCJpYXQiOjE3ODkwNTQ1MTQsImV4cCI6ODgxODg5NjgxMTR9.1PSUgrGDxHh3_bq-06sasqkO583Zf2XELl2MlOK7tu4" alt="Escola de Negócios FDR">
+                </div>
+                <div class="header-title">
+                    <h1>Trilhas Gestão de Pessoas</h1>
+                    <p>Painel executivo de acompanhamento, aderência e satisfação</p>
+                </div>
+            </div>
+            <button id="btnExport" class="btn-export" data-html2canvas-ignore="true">
+                <i class="bi bi-camera"></i> Exportar Imagem
+            </button>
+        </header>
+
+        <div class="table-controls" data-html2canvas-ignore="true">
+            <div class="controls-label"><i class="bi bi-eye"></i> Visualização:</div>
+            <label class="toggle-label"><input type="checkbox" id="toggleLideranca" checked> % Liderança</label>
+            <label class="toggle-label"><input type="checkbox" id="toggleBackoffice" checked> % Backoffice</label>
+        </div>
+
+        <section class="bento-card table-section">
+            <table id="tabela-aderencia">
+                <thead>
+                    <tr>
+                        <th><i class="bi bi-journal-text icon-header"></i> Missão</th>
+                        <th class="col-lideranca"><i class="bi bi-person-workspace icon-header"></i> % Liderança</th>
+                        <th class="col-backoffice"><i class="bi bi-headset icon-header"></i> % Backoffice</th>
+                        <th><i class="bi bi-bullseye icon-header"></i> % Conclusão</th>
+                        <th class="dotted-col"><i class="bi bi-buildings icon-header"></i> % CP's c/ Concluinte</th>
+                        <th class="highlight-col"><i class="bi bi-star-fill icon-header"></i> % CSAT</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-body"></tbody>
+                <tfoot id="tabela-footer"></tfoot>
+            </table>
+        </section>
+
+        <!-- Grid Duplo: Ranking e Feedbacks -->
+        <div class="bottom-grid">
+            <!-- Rankings Macro Regionais -->
+            <section class="rankings-container">
+                <div class="bento-card ranking-header">
+                    <div class="ranking-header-text">
+                        <h2><i class="bi bi-bar-chart-line-fill"></i> Ranking Macro Regionais</h2>
+                        <p>Performance comparativa de aderência.</p>
+                    </div>
+                    <div class="filter-area" data-html2canvas-ignore="true">
+                        <select id="filtro-missao"><option value="todos">Geral (Todos)</option></select>
+                    </div>
+                </div>
+                <div class="ranking-list" id="ranking-list"></div>
+            </section>
+
+            <!-- Feedbacks CSAT -->
+            <section class="feedbacks-container">
+                <div class="bento-card ranking-header">
+                    <div class="ranking-header-text">
+                        <h2><i class="bi bi-chat-quote-fill"></i> Voz do Colaborador (CSAT)</h2>
+                        <p>Destaques de satisfação dos treinamentos.</p>
+                    </div>
+                    <button class="btn-outline" id="btnOpenModal" data-html2canvas-ignore="true">Ver Todos</button>
+                </div>
+                <div class="feedbacks-list" id="feedbacks-list">
+                    <!-- Cards CSAT Injetados via JS -->
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Modal de Comentários (Invisível na exportação) -->
+    <div id="modalComments" class="modal-overlay" data-html2canvas-ignore="true">
+        <div class="modal-content bento-card">
+            <div class="modal-header">
+                <h2>Todos os Feedbacks</h2>
+                <button class="btn-close-modal" id="btnCloseModal"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body" id="modal-comments-list"></div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

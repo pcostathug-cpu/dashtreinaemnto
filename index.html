@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Indicadores de Treinamento</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Bibliotecas externas puxadas direto da nuvem -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Atualização de Indicadores</h1>
+        <p>Faça o upload dos relatórios para unificar as bases de treinamento.</p>
+        
+        <div class="upload-area">
+            <div class="card">
+                <h3>Relatório FAROL</h3>
+                <input type="file" id="fileFarol" accept=".xlsx">
+            </div>
+            
+            <div class="card">
+                <h3>Relatório UNIBÊ</h3>
+                <input type="file" id="fileUnibe" accept=".xlsx">
+            </div>
+        </div>
+        <div class="card">
+                <h3>Relatório CSAT</h3>
+                <input type="file" id="fileCsat" accept=".xlsx">
+            </div>
+
+        <button id="btnProcessar">Unificar e Enviar</button>
+        <div id="status"></div>
+    </div>
+
+    <!-- Nosso motor lógico -->
+    <script src="app.js"></script>
+</body>
+</html>
