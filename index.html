@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hub de Treinamento - Escola de Negócios FDR</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="app-layout">
+        
+        <!-- BARRA LATERAL (SIDEBAR) -->
+        <nav class="sidebar" data-html2canvas-ignore="true">
+            <div class="sidebar-logo">
+                <i class="bi bi-rocket-takeoff-fill"></i>
+            </div>
+            <div class="sidebar-menu">
+                <!-- Botão Upload -->
+                <button class="nav-item active" onclick="switchView('view-upload')" title="Importar Dados">
+                    <i class="bi bi-cloud-arrow-up-fill"></i>
+                </button>
+                <!-- Botão Dashboard -->
+                <button class="nav-item" onclick="switchView('view-dashboard')" title="Painel de Aderência">
+                    <i class="bi bi-pie-chart-fill"></i>
+                </button>
+            </div>
+            <div class="sidebar-footer">
+                <button class="nav-item" title="Configurações">
+                    <i class="bi bi-gear-fill"></i>
+                </button>
+            </div>
+        </nav>
+
+        <!-- ÁREA PRINCIPAL -->
+        <main class="main-content">
+            
+            <!-- TELA 1: UPLOAD DE DADOS -->
+            <section id="view-upload" class="view-section active">
+                <div class="upload-container">
+                    <div class="header-title" style="margin-bottom: 30px;">
+                        <h1 style="color: var(--brand-dark); border-left: 4px solid var(--brand-accent); padding-left: 20px;">Integração de Dados</h1>
+                        <p style="color: #64748b; padding-left: 20px; margin-top: 5px;">Atualize as bases de treinamento e satisfação da plataforma.</p>
+                    </div>
+                    
+                    <div class="upload-grid">
+                        <!-- Card 1: Farol + Unibê -->
+                        <div class="bento-card upload-card">
+                            <div class="upload-icon"><i class="bi bi-people-fill"></i></div>
+                            <h3>Matrículas e Aderência</h3>
+                            <p>Cruze os relatórios do FAROL e UNIBÊ para atualizar o progresso.</p>
+                            
+                            <div class="file-inputs">
+                                <label>1. Arquivo FAROL:</label>
+                                <input type="file" id="fileFarol" accept=".xlsx">
+                                
+                                <label style="margin-top: 15px;">2. Arquivo UNIBÊ:</label>
+                                <input type="file" id="fileUnibe" accept=".xlsx">
+                            </div>
+                            
+                            <button id="btnProcMatriculas" class="btn-primary mt-3">Sincronizar Matrículas</button>
+                            <div id="statusMatriculas" class="status-msg"></div>
+                        </div>
+
+                        <!-- Card 2: CSAT -->
+                        <div class="bento-card upload-card">
+                            <div class="upload-icon" style="background: #f0fdf4; color: #16a34a;"><i class="bi bi-star-fill"></i></div>
+                            <h3>Pesquisas CSAT</h3>
+                            <p>Atualize os resultados da pesquisa de satisfação dos treinamentos.</p>
+                            
+                            <div class="file-inputs">
+                                <label>1. Relatório de CSAT:</label>
+                                <input type="file" id="fileCsat" accept=".xlsx">
+                            </div>
+                            
+                            <button id="btnProcCsat" class="btn-primary mt-3" style="background-color: #16a34a;">Sincronizar CSAT</button>
+                            <div id="statusCsat" class="status-msg"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 2: DASHBOARD (Oculta por padrão) -->
+            <section id="view-dashboard" class="view-section" style="display: none;">
+                <div class="dashboard-container" id="relatorio-export">
+                    <!-- Cabeçalho Executivo -->
+                    <header class="top-header">
+                        <div class="header-left">
+                            <div class="logo-area">
+                                <img src="https://sfjrhiwhphlkozjktupi.supabase.co/storage/v1/object/sign/content/Artboard%2044@4x.png?token=eyJraWQiOiIxYzI3ZjY0Mi02ZWNhLTRmODgtOTVjOC1jZmM2MDljODM4NjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJjb250ZW50L0FydGJvYXJkIDQ0QDR4LnBuZyIsInNjb3BlIjoiZG93bmxvYWQiLCJpYXQiOjE3ODkwNTQ1MTQsImV4cCI6ODgxODg5NjgxMTR9.1PSUgrGDxHh3_bq-06sasqkO583Zf2XELl2MlOK7tu4" alt="Escola de Negócios FDR">
+                            </div>
+                            <div class="header-title">
+                                <h1 style="color: #fff;">Trilhas Gestão de Pessoas</h1>
+                                <p style="color: var(--brand-bg);">Painel executivo de acompanhamento, aderência e satisfação</p>
+                            </div>
+                        </div>
+                        <button id="btnExport" class="btn-export" data-html2canvas-ignore="true">
+                            <i class="bi bi-camera"></i> Exportar Imagem
+                        </button>
+                    </header>
+
+                    <div class="table-controls" data-html2canvas-ignore="true">
+                        <div class="controls-label"><i class="bi bi-eye"></i> Visualização:</div>
+                        <label class="toggle-label"><input type="checkbox" id="toggleLideranca" checked> % Liderança</label>
+                        <label class="toggle-label"><input type="checkbox" id="toggleBackoffice" checked> % Backoffice</label>
+                    </div>
+
+                    <section class="bento-card table-section">
+                        <table id="tabela-aderencia">
+                            <thead>
+                                <tr>
+                                    <th><i class="bi bi-journal-text icon-header"></i> Missão</th>
+                                    <th class="col-lideranca"><i class="bi bi-person-workspace icon-header"></i> % Liderança</th>
+                                    <th class="col-backoffice"><i class="bi bi-headset icon-header"></i> % Backoffice</th>
+                                    <th><i class="bi bi-bullseye icon-header"></i> % Conclusão</th>
+                                    <th class="dotted-col"><i class="bi bi-buildings icon-header"></i> % CP's c/ Concluinte</th>
+                                    <th class="highlight-col"><i class="bi bi-star-fill icon-header"></i> % CSAT</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabela-body"></tbody>
+                            <tfoot id="tabela-footer"></tfoot>
+                        </table>
+                    </section>
+
+                    <div class="bottom-grid">
+                        <section class="rankings-container">
+                            <div class="bento-card ranking-header">
+                                <div class="ranking-header-text">
+                                    <h2 style="color: var(--brand-dark);"><i class="bi bi-bar-chart-line-fill" style="color: var(--brand-accent);"></i> Ranking Macro Regionais</h2>
+                                    <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Performance comparativa de aderência.</p>
+                                </div>
+                                <div class="filter-area" data-html2canvas-ignore="true">
+                                    <select id="filtro-missao"><option value="todos">Geral (Todos)</option></select>
+                                </div>
+                            </div>
+                            <div class="ranking-list" id="ranking-list"></div>
+                        </section>
+
+                        <section class="feedbacks-container">
+                            <div class="bento-card ranking-header">
+                                <div class="ranking-header-text">
+                                    <h2 style="color: var(--brand-dark);"><i class="bi bi-chat-quote-fill" style="color: var(--brand-accent);"></i> Voz do Colaborador (CSAT)</h2>
+                                    <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Destaques de satisfação dos treinamentos.</p>
+                                </div>
+                                <button class="btn-outline" id="btnOpenModal" data-html2canvas-ignore="true">Ver Todos</button>
+                            </div>
+                            <div class="feedbacks-list" id="feedbacks-list"></div>
+                        </section>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal CSAT -->
+    <div id="modalComments" class="modal-overlay" data-html2canvas-ignore="true">
+        <div class="modal-content bento-card">
+            <div class="modal-header">
+                <h2 style="color: var(--brand-dark);">Todos os Feedbacks</h2>
+                <button class="btn-close-modal" id="btnCloseModal"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="modal-body" id="modal-comments-list"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
