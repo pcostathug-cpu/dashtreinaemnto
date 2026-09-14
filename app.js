@@ -229,9 +229,11 @@ async function initDashboard() {
         totalCPsDistintos = uniqueCPs.size;
 
         processarTabelaPrincipal();
-        popularFiltroMissoes();
+        popularFiltrosDashboard();
+        popularFiltrosModalCsat();
         processarRanking('todos');
-        renderizarFeedbacks();
+        renderizarFeedbacksResumo();
+        filtrarModalFeedbacks();
     } catch (error) {
         console.error("Erro no Dashboard:", error);
     }
@@ -239,8 +241,11 @@ async function initDashboard() {
 
 function processarTabelaPrincipal() {
     const missoesMap = new Map();
+    
     csatData.forEach(c => {
-        if (!missoesMap.has(c.missao)) missoesMap.set(c.missao, { nome: c.missao, liderancaElegivel: 0, liderancaConcluido: 0, backofficeElegivel: 0, backofficeConcluido: 0, cpsConcluidos: new Set(), csatPromoters: 0, csatTotal: 0 });
+        if (!missoesMap.has(c.missao)) {
+            missoesMap.set(c.missao, { nome: c.missao, liderancaElegivel: 0, liderancaConcluido: 0, backofficeElegivel: 0, backofficeConcluido: 0, matriculados: 0, cpsConcluidos: new Set(), csatPromoters: 0, csatTotal: 0 });
+        }
         const m = missoesMap.get(c.missao);
         m.csatTotal++;
         if (c.nota >= 4) m.csatPromoters++;
@@ -248,14 +253,27 @@ function processarTabelaPrincipal() {
 
     rawData.forEach(row => {
         const missao = row.missao || 'Sem Nome';
-        if (!missoesMap.has(missao)) missoesMap.set(missao, { nome: missao, liderancaElegivel: 0, liderancaConcluido: 0, backofficeElegivel: 0, backofficeConcluido: 0, cpsConcluidos: new Set(), csatPromoters: 0, csatTotal: 0 });
+        if (!missoesMap.has(missao)) {
+            missoesMap.set(missao, { nome: missao, liderancaElegivel: 0, liderancaConcluido: 0, backofficeElegivel: 0, backofficeConcluido: 0, matriculados: 0, cpsConcluidos: new Set(), csatPromoters: 0, csatTotal: 0 });
+        }
+        
         const stats = missoesMap.get(missao);
         const isLider = (row.tipo_cargo || '').toLowerCase().includes('lider');
 
         if (row.elegivel) {
             if (isLider) { stats.liderancaElegivel++; if (row.concluido) stats.liderancaConcluido++; } 
             else { stats.backofficeElegivel++; if (row.concluido) stats.backofficeConcluido++; }
+            
+            const status = (row.status_matricula || '').toString().toUpperCase().trim();
+            const isIniciado = row.concluido || 
+                               row.progresso_percentual > 0 || 
+                               (status !== 'NÃO INICIADO' && status !== 'NOT_STARTED' && status !== '');
+                               
+            if (isIniciado) {
+                stats.matriculados++;
+            }
         }
+        
         if (row.concluido && row.codigo_cp) stats.cpsConcluidos.add(row.codigo_cp);
     });
 
@@ -267,7 +285,7 @@ function renderizarTabela(dadosMissoes) {
     const tfoot = document.getElementById('tabela-footer');
     tbody.innerHTML = '';
 
-    let totLidEleg = 0, totLidConc = 0, totBackEleg = 0, totBackConc = 0, totCsatPromoters = 0, totCsatGeral = 0;
+    let totLidEleg = 0, totLidConc = 0, totBackEleg = 0, totBackConc = 0, totMatriculados = 0, totCsatPromoters = 0, totCsatGeral = 0;
     let allCpsConcluidosGeral = new Set();
 
     dadosMissoes.forEach(missao => {
@@ -275,6 +293,7 @@ function renderizarTabela(dadosMissoes) {
         totLidConc += missao.liderancaConcluido;
         totBackEleg += missao.backofficeElegivel; 
         totBackConc += missao.backofficeConcluido;
+        totMatriculados += missao.matriculados;
         totCsatPromoters += missao.csatPromoters; 
         totCsatGeral += missao.csatTotal;
         missao.cpsConcluidos.forEach(cp => allCpsConcluidosGeral.add(cp));
@@ -283,13 +302,14 @@ function renderizarTabela(dadosMissoes) {
         const pcBack = missao.backofficeElegivel ? ((missao.backofficeConcluido / missao.backofficeElegivel) * 100).toFixed(2) : '-';
         const totElegGeral = missao.liderancaElegivel + missao.backofficeElegivel;
         const totConcGeral = missao.liderancaConcluido + missao.backofficeConcluido;
+        const pcMatriculados = totElegGeral ? ((missao.matriculados / totElegGeral) * 100).toFixed(2) : '-';
         const pcGeral = totElegGeral ? ((totConcGeral / totElegGeral) * 100).toFixed(2) : '0.00';
         const pcCp = totalCPsDistintos ? ((missao.cpsConcluidos.size / totalCPsDistintos) * 100).toFixed(2) : '0.00';
         const pcCsat = missao.csatTotal ? ((missao.csatPromoters / missao.csatTotal) * 100).toFixed(2) : '-';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td class="missao-nome">${missao.nome}</td>
+            <td class="missao-nome col-missao">${missao.nome}</td>
             <td class="col-lideranca">
                 <span class="big-percent">${pcLid !== '-' ? pcLid + '%' : '-'}</span>
                 ${missao.liderancaElegivel > 0 ? `<span class="small-count">${missao.liderancaConcluido} | ${missao.liderancaElegivel}</span>` : ''}
@@ -298,15 +318,19 @@ function renderizarTabela(dadosMissoes) {
                 <span class="big-percent">${pcBack !== '-' ? pcBack + '%' : '-'}</span>
                 ${missao.backofficeElegivel > 0 ? `<span class="small-count">${missao.backofficeConcluido} | ${missao.backofficeElegivel}</span>` : ''}
             </td>
-            <td>
+            <td class="col-matriculados">
+                <span class="big-percent">${pcMatriculados !== '-' ? pcMatriculados + '%' : '-'}</span>
+                ${totElegGeral > 0 ? `<span class="small-count">${missao.matriculados} | ${totElegGeral}</span>` : ''}
+            </td>
+            <td class="col-conclusao">
                 <span class="big-percent">${pcGeral}%</span>
                 <span class="small-count">${totConcGeral} | ${totElegGeral}</span>
             </td>
-            <td class="dotted-col">
+            <td class="dotted-col col-cp">
                 <span class="big-percent">${pcCp}%</span>
                 <span class="small-count">${missao.cpsConcluidos.size} | ${totalCPsDistintos} CP's</span>
             </td>
-            <td class="highlight-col">
+            <td class="highlight-col col-csat">
                 <span class="big-percent" style="color:#16a34a">${pcCsat !== '-' ? pcCsat + '%' : '-'}</span>
                 <span class="small-count">${missao.csatTotal} avaliações</span>
             </td>
@@ -315,21 +339,23 @@ function renderizarTabela(dadosMissoes) {
     });
 
     const totEleg = totLidEleg + totBackEleg;
+    const pcTotMatriculados = totEleg ? ((totMatriculados / totEleg) * 100).toFixed(2) : 0;
     const pcCsatTotal = totCsatGeral ? ((totCsatPromoters / totCsatGeral) * 100).toFixed(2) : 0;
     
     tfoot.innerHTML = `
         <tr>
-            <td class="missao-nome"><i class="bi bi-calculator-fill" style="color: #fbbc82; margin-right: 8px;"></i> Aderência Total</td>
+            <td class="missao-nome col-missao"><i class="bi bi-calculator-fill" style="color: #fbbc82; margin-right: 8px;"></i> Aderência Total</td>
             <td class="col-lideranca"><span class="big-percent">${totLidEleg ? ((totLidConc / totLidEleg) * 100).toFixed(2) : 0}%</span></td>
             <td class="col-backoffice"><span class="big-percent">${totBackEleg ? ((totBackConc / totBackEleg) * 100).toFixed(2) : 0}%</span></td>
-            <td><span class="big-percent">${totEleg ? (((totLidConc + totBackConc) / totEleg) * 100).toFixed(2) : 0}%</span></td>
-            <td class="dotted-col"><span class="big-percent">${totalCPsDistintos ? ((allCpsConcluidosGeral.size / totalCPsDistintos) * 100).toFixed(2) : 0}%</span></td>
-            <td class="highlight-col"><span class="big-percent" style="color:#16a34a">${pcCsatTotal}%</span></td>
+            <td class="col-matriculados"><span class="big-percent">${pcTotMatriculados}%</span></td>
+            <td class="col-conclusao"><span class="big-percent">${totEleg ? (((totLidConc + totBackConc) / totEleg) * 100).toFixed(2) : 0}%</span></td>
+            <td class="dotted-col col-cp"><span class="big-percent">${totalCPsDistintos ? ((allCpsConcluidosGeral.size / totalCPsDistintos) * 100).toFixed(2) : 0}%</span></td>
+            <td class="highlight-col col-csat"><span class="big-percent" style="color:#16a34a">${pcCsatTotal}%</span></td>
         </tr>
     `;
 }
 
-function popularFiltroMissoes() {
+function popularFiltrosDashboard() {
     const filtro = document.getElementById('filtro-missao');
     filtro.innerHTML = '<option value="todos">Geral (Todos)</option>';
     const missoesUnicas = [...new Set(rawData.map(r => r.missao).filter(Boolean))];
@@ -338,7 +364,6 @@ function popularFiltroMissoes() {
         option.value = missao; option.textContent = missao;
         filtro.appendChild(option);
     });
-    
     const novoFiltro = filtro.cloneNode(true);
     filtro.parentNode.replaceChild(novoFiltro, filtro);
     novoFiltro.addEventListener('change', (e) => processarRanking(e.target.value));
@@ -376,27 +401,94 @@ function processarRanking(missaoFiltro) {
     });
 }
 
-function renderizarFeedbacks() {
-    const listMain = document.getElementById('feedbacks-list');
-    const listModal = document.getElementById('modal-comments-list');
-    const comentados = csatData.filter(c => c.comentario && c.comentario.trim().length > 3).sort((a,b) => b.nota - a.nota);
-
-    const renderCard = (c) => `
+// ==========================================
+// MÓDULO 4: FEEDBACKS CSAT EQUILIBRADOS
+// ==========================================
+function renderCardFeedback(c) {
+    return `
         <div class="feedback-card">
             <div class="feedback-header"><span class="feedback-mission">${c.missao}</span><span class="feedback-score"><i class="bi bi-star-fill"></i> ${c.nota}</span></div>
             <p class="feedback-text">"${c.comentario}"</p>
         </div>`;
-
-    listMain.innerHTML = comentados.slice(0, 5).map(renderCard).join('');
-    listModal.innerHTML = comentados.map(renderCard).join('');
 }
 
-document.getElementById('toggleLideranca').addEventListener('change', (e) => {
-    document.getElementById('tabela-aderencia').classList.toggle('hide-lideranca', !e.target.checked);
+function renderizarFeedbacksResumo() {
+    const listMain = document.getElementById('feedbacks-list');
+    const comentados = csatData.filter(c => c.comentario && c.comentario.trim().length > 3);
+
+    // Separa a base entre Elogios (4-5) e Oportunidades (1-3)
+    const elogios = comentados.filter(c => c.nota >= 4).sort((a,b) => b.nota - a.nota);
+    // Ordena as oportunidades de forma crescente para priorizar as notas mais baixas (1, 2)
+    const oportunidades = comentados.filter(c => c.nota < 4).sort((a,b) => a.nota - b.nota);
+
+    // Lógica de Equilíbrio: Até 3 elogios, Até 2 oportunidades (compensando se faltar)
+    let qtdElogios = Math.min(3, elogios.length);
+    let qtdOports = Math.min(2, oportunidades.length);
+
+    if (qtdElogios < 3) qtdOports = Math.min(oportunidades.length, 5 - qtdElogios);
+    if (qtdOports < 2) qtdElogios = Math.min(elogios.length, 5 - qtdOports);
+
+    const top5 = [...elogios.slice(0, qtdElogios), ...oportunidades.slice(0, qtdOports)];
+
+    listMain.innerHTML = top5.length > 0 ? top5.map(renderCardFeedback).join('') : '<p style="color:#64748b; font-size:14px;">Sem comentários no momento.</p>';
+}
+
+function popularFiltrosModalCsat() {
+    const filtroMissao = document.getElementById('modal-filtro-missao');
+    filtroMissao.innerHTML = '<option value="todos">Todos os Treinamentos</option>';
+    const missoesUnicas = [...new Set(csatData.map(r => r.missao).filter(Boolean))];
+    missoesUnicas.forEach(missao => {
+        const option = document.createElement('option');
+        option.value = missao; option.textContent = missao;
+        filtroMissao.appendChild(option);
+    });
+}
+
+function filtrarModalFeedbacks() {
+    const listModal = document.getElementById('modal-comments-list');
+    const missaoSel = document.getElementById('modal-filtro-missao').value;
+    const notaSel = document.getElementById('modal-filtro-nota').value;
+
+    let filtrados = csatData.filter(c => c.comentario && c.comentario.trim().length > 3);
+
+    if (missaoSel !== 'todos') filtrados = filtrados.filter(c => c.missao === missaoSel);
+    
+    if (notaSel !== 'todos') {
+        if (notaSel === 'positivos') filtrados = filtrados.filter(c => c.nota >= 4);
+        else if (notaSel === 'oportunidades') filtrados = filtrados.filter(c => c.nota < 4);
+        else filtrados = filtrados.filter(c => c.nota == parseInt(notaSel));
+    }
+
+    // No modal, a ordem padrão é decrescente
+    filtrados.sort((a,b) => b.nota - a.nota);
+
+    listModal.innerHTML = filtrados.length > 0 ? filtrados.map(renderCardFeedback).join('') : '<p style="color:#64748b;">Nenhum feedback encontrado para estes filtros.</p>';
+}
+
+document.getElementById('modal-filtro-missao').addEventListener('change', filtrarModalFeedbacks);
+document.getElementById('modal-filtro-nota').addEventListener('change', filtrarModalFeedbacks);
+
+// --- CONTROLE DE COLUNAS ---
+const toggleColunas = [
+    { id: 'toggleMissao', cls: 'hide-missao' },
+    { id: 'toggleLideranca', cls: 'hide-lideranca' },
+    { id: 'toggleBackoffice', cls: 'hide-backoffice' },
+    { id: 'toggleMatriculados', cls: 'hide-matriculados' },
+    { id: 'toggleConclusao', cls: 'hide-conclusao' },
+    { id: 'toggleCp', cls: 'hide-cp' },
+    { id: 'toggleCsat', cls: 'hide-csat' }
+];
+
+toggleColunas.forEach(col => {
+    const el = document.getElementById(col.id);
+    if(el) {
+        el.addEventListener('change', (e) => {
+            document.getElementById('tabela-aderencia').classList.toggle(col.cls, !e.target.checked);
+        });
+    }
 });
-document.getElementById('toggleBackoffice').addEventListener('change', (e) => {
-    document.getElementById('tabela-aderencia').classList.toggle('hide-backoffice', !e.target.checked);
-});
+
+// --- MODAIS E EXPORTAÇÃO ---
 document.getElementById('btnOpenModal').addEventListener('click', () => document.getElementById('modalComments').classList.add('active'));
 document.getElementById('btnCloseModal').addEventListener('click', () => document.getElementById('modalComments').classList.remove('active'));
 
