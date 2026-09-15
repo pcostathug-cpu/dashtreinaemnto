@@ -13,6 +13,28 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+
+    <style>
+        /* Estilos exclusivos para a Nova Tabela Nominal */
+        .nominal-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+        .nominal-table th { background: #f8fafc; padding: 12px; border-bottom: 2px solid #e2e8f0; color: #475569; font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 10; }
+        .nominal-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; color: #1e293b; white-space: nowrap; }
+        .nominal-table tr:hover { background-color: #f8fafc; }
+        
+        .table-responsive {
+            max-height: 400px; 
+            overflow-y: auto; 
+            overflow-x: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        
+        /* Custom Scrollbar para a Tabela */
+        .table-responsive::-webkit-scrollbar { width: 8px; height: 8px; }
+        .table-responsive::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
+        .table-responsive::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+        .table-responsive::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
 </head>
 <body>
     <div class="app-layout">
@@ -112,7 +134,6 @@
                         <div class="dash-master-filter" data-html2canvas-ignore="true">
                             <select id="dash-competencia" class="select-master"></select>
                             
-                            <!-- Botão de Filtros apenas com Ícone -->
                             <button id="btnOpenFiltersDash" class="btn-export" title="Filtros Avançados" style="background: #fff; margin-right: 10px; border: 1px solid #e2e8f0; font-size: 18px; padding: 8px 12px;">
                                 <i class="bi bi-funnel-fill" style="color: var(--brand-accent);"></i>
                             </button>
@@ -130,7 +151,7 @@
                         <label class="toggle-label"><input type="checkbox" id="toggleBackoffice" checked> % Backoffice</label>
                         <label class="toggle-label"><input type="checkbox" id="toggleMatriculados" checked> % Matriculados</label>
                         <label class="toggle-label"><input type="checkbox" id="toggleConclusao" checked> % Conclusão</label>
-                        <label class="toggle-label"><input type="checkbox" id="toggleCp" checked> % CP's </label>
+                        <label class="toggle-label"><input type="checkbox" id="toggleCp" checked> % CP's</label>
                         <label class="toggle-label"><input type="checkbox" id="toggleCsat" checked> % CSAT</label>
                     </div>
 
@@ -143,7 +164,7 @@
                                     <th class="col-backoffice"><i class="bi bi-headset icon-header"></i> % Concluíntes Backoffice</th>
                                     <th class="col-matriculados"><i class="bi bi-play-circle-fill icon-header"></i> % Matriculados</th>
                                     <th class="col-conclusao"><i class="bi bi-bullseye icon-header"></i> % Conclusão</th>
-                                    <th class="dotted-col col-cp"><i class="bi bi-buildings icon-header"></i> % CP's com 1 Concluinte</th>
+                                    <th class="dotted-col col-cp"><i class="bi bi-buildings icon-header"></i> % CP's c/ Concluinte</th>
                                     <th class="highlight-col col-csat"><i class="bi bi-star-fill icon-header"></i> % CSAT</th>
                                 </tr>
                             </thead>
@@ -232,6 +253,41 @@
                             <div id="chart-heatmap" style="width: 100%; height: 250px;"></div>
                         </div>
                     </div>
+
+                    <!-- NOVO: RELATÓRIO NOMINAL -->
+                    <div class="bento-card chart-container" style="margin-top: 24px; grid-column: span 2;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <div>
+                                <h3><i class="bi bi-person-lines-fill"></i> Relatório Nominal de Colaboradores</h3>
+                                <p style="font-size: 13px; color: #64748b; margin-top: 5px;">Acompanhamento individual detalhado. Esta tabela reage aos filtros aplicados.</p>
+                            </div>
+                            <button id="btnExportCSV" class="btn-primary" style="background-color: #0f172a; padding: 8px 15px; font-size: 14px;">
+                                <i class="bi bi-filetype-csv"></i> Baixar Dados (CSV)
+                            </button>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="nominal-table">
+                                <thead>
+                                    <tr>
+                                        <th>Missão</th>
+                                        <th>Nome</th>
+                                        <th>CP</th>
+                                        <th>Tipo de Cargo</th>
+                                        <th>Cargo</th>
+                                        <th>Status Matrícula</th>
+                                        <th>Progresso</th>
+                                        <th>Nota de Avaliação</th>
+                                        <th>Data Conclusão</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-nominal-body">
+                                    <!-- Preenchido dinamicamente pelo JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                 </div>
             </section>
 

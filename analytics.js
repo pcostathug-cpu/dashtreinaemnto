@@ -59,7 +59,6 @@ function inicializarGraficosEAtualizar() {
 // ==========================================
 document.getElementById('btnOpenFilters').addEventListener('click', () => document.getElementById('filter-drawer').classList.add('open'));
 
-// Listener para o novo botão do Dashboard
 const btnDashFilters = document.getElementById('btnOpenFiltersDash');
 if (btnDashFilters) {
     btnDashFilters.addEventListener('click', () => document.getElementById('filter-drawer').classList.add('open'));
@@ -86,7 +85,6 @@ window.popularGavetaFiltros = function() {
     document.getElementById('filtro-consultor').innerHTML = consultores.map(v => `<label><input type="checkbox" value="${v}" class="chk-resp"> ${v}</label>`).join('');
 }
 
-// Sincroniza o select da gaveta com a tela inicial
 document.getElementById('filtro-ana-competencia').addEventListener('change', (e) => {
     const dashComp = document.getElementById('dash-competencia');
     if (dashComp) dashComp.value = e.target.value;
@@ -96,7 +94,6 @@ document.getElementById('filtro-ana-competencia').addEventListener('change', (e)
     window.aplicarFiltrosGlobais();
 });
 
-// Cascata de CPs -> PDVs
 document.getElementById('filtro-cp').addEventListener('change', (e) => {
     if (e.target && e.target.classList.contains('chk-cp')) { atualizarFiltroPDV(); }
 });
@@ -121,7 +118,6 @@ function atualizarFiltroPDV() {
     }).join('');
 }
 
-// Cascata de Tipo Cargo -> Cargo Específico
 document.getElementById('filtro-tipo-cargo').addEventListener('change', (e) => {
     if (e.target && e.target.classList.contains('chk-tc')) { atualizarFiltroCargoEspecifico(); }
 });
@@ -215,16 +211,13 @@ window.aplicarFiltrosGlobais = function() {
     const matriculasDashboard = new Set(baseDashboard.map(d => d.id_matricula));
     window.filteredCsatData = (window.globalCsatData || []).filter(c => matriculasDashboard.has(c.chave_unica));
 
-    // A CORREÇÃO:
-    // Sempre atualiza o Dashboard para garantir que os dados estejam prontos
     if (window.atualizarComponentesDashboard) {
         window.atualizarComponentesDashboard();
     }
     
-    // Gráficos do ECharts só desenham se a tela estiver visível para não dar erro de tamanho (width 0px)
     const viewAnalytics = document.getElementById('view-analytics');
     if (viewAnalytics && viewAnalytics.style.display === 'block') {
-        renderizarPainel(base, dtIni, dtFim);
+        renderizarPainel(baseDashboard, dtIni, dtFim);
     }
 }
 
@@ -233,7 +226,12 @@ function renderizarPainel(dados, dtIni, dtFim) {
         document.getElementById('kpi-matriculas').innerText = "0";
         document.getElementById('kpi-aderencia').innerText = "0%";
         document.getElementById('kpi-nota').innerText = "-";
-        chartFunil.clear(); chartMapa.clear(); chartHeatmap.clear(); chartProgresso.clear();
+        if(chartFunil) chartFunil.clear(); 
+        if(chartMapa) chartMapa.clear(); 
+        if(chartHeatmap) chartHeatmap.clear(); 
+        if(chartProgresso) chartProgresso.clear();
+        
+        renderizarTabelaNominal(dados);
         return;
     }
 
@@ -410,6 +408,105 @@ function renderizarPainel(dados, dtIni, dtFim) {
         },
         series: [{ type: 'heatmap', coordinateSystem: 'calendar', data: heatmapData }]
     }, true);
+    
+    renderizarTabelaNominal(dados);
+}
+
+// ==========================================
+// FUNÇÕES DA NOVA TABELA NOMINAL
+// ==========================================
+function renderizarTabelaNominal(dados) {
+    const tbody = document.getElementById('tabela-nominal-body');
+    if(!tbody) return;
+    
+    if (dados.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #64748b; padding: 20px;">Nenhum colaborador encontrado com os filtros atuais.</td></tr>';
+        return;
+    }
+
+    // Ordena alfabeticamente pelo nome para ficar organizado
+    const dadosOrdenados = [...dados].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+
+    let html = '';
+    dadosOrdenados.forEach(d => {
+        // Tratamento da data para DD/MM/YYYY
+        let dataConc = '-';
+        if (d.data_conclusao) {
+            const datePart = d.data_conclusao.split('T')[0]; // Pega YYYY-MM-DD
+            dataConc = datePart.split('-').reverse().join('/'); // Vira DD/MM/YYYY
+        }
+        
+        const nota = (d.media_notas !== null && d.media_notas !== undefined) ? d.media_notas : '-';
+        const progresso = d.progresso_percentual !== null ? Math.round(d.progresso_percentual) + '%' : '0%';
+        
+        // Etiqueta visual de status
+        let corStatus = '#f1f5f9'; let corTexto = '#475569';
+        if (d.concluido) { corStatus = '#dcfce7'; corTexto = '#16a34a'; }
+        else if (d.progresso_percentual > 0 || (d.status_matricula && d.status_matricula.toUpperCase() !== 'NÃO INICIADO')) { corStatus = '#fef9c3'; corTexto = '#ca8a04'; }
+
+        html += `
+            <tr>
+                <td>${d.missao || '-'}</td>
+                <td style="font-weight: 500; color: var(--brand-dark);">${d.nome || '-'}</td>
+                <td>${d.nome_cp || '-'}</td>
+                <td>${d.tipo_cargo || '-'}</td>
+                <td>${d.cargo || '-'}</td>
+                <td><span style="background: ${corStatus}; color: ${corTexto}; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">${d.status_matricula || '-'}</span></td>
+                <td>${progresso}</td>
+                <td>${nota}</td>
+                <td>${dataConc}</td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+// Botão de Download CSV
+document.addEventListener('DOMContentLoaded', () => {
+    const btnExportCSV = document.getElementById('btnExportCSV');
+    if (btnExportCSV) {
+        btnExportCSV.addEventListener('click', exportarCSVNominal);
+    }
+});
+
+function exportarCSVNominal() {
+    // Puxa exatamente os dados que estão com os filtros aplicados neste momento
+    const dados = window.filteredRawData || [];
+    
+    if (dados.length === 0) {
+        alert('Não há dados para exportar com os filtros selecionados.');
+        return;
+    }
+
+    // Formata o pacote de dados para o SheetJS traduzir para Excel/CSV
+    const dadosPlanilha = dados.map(d => {
+        let dataConcFormatada = '-';
+        if (d.data_conclusao) {
+            dataConcFormatada = d.data_conclusao.split('T')[0].split('-').reverse().join('/');
+        }
+
+        return {
+            'Missão': d.missao || '-',
+            'Nome': d.nome || '-',
+            'CP': d.nome_cp || '-',
+            'Tipo de Cargo': d.tipo_cargo || '-',
+            'Cargo': d.cargo || '-',
+            'Status Matrícula': d.status_matricula || '-',
+            'Progresso (%)': d.progresso_percentual || 0,
+            'Nota de Avaliação': d.media_notas !== null && d.media_notas !== undefined ? d.media_notas : '-',
+            'Data Conclusão': dataConcFormatada
+        };
+    });
+
+    // Cria e baixa o arquivo CSV
+    const ws = XLSX.utils.json_to_sheet(dadosPlanilha);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Relatorio Nominal");
+    
+    // Gera o arquivo com a data de hoje no nome
+    const dataHoje = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `Relatorio_Nominal_Escola_Negocios_${dataHoje}.csv`, { bookType: 'csv' });
 }
 
 window.addEventListener('resize', () => {

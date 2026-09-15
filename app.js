@@ -9,7 +9,6 @@ window.listaCompetencias = [];
 window.globalRawData = [];
 window.globalCsatData = [];
 
-// Variáveis dinâmicas pós-filtro (Usadas pelo Dashboard)
 let rawData = []; 
 let csatData = []; 
 let totalCPsDistintos = 0;
@@ -139,11 +138,14 @@ document.getElementById('btnProcMatriculas').addEventListener('click', async () 
         const unibeMap = new Map();
         dataUnibe.forEach(row => { if (row['Username']) unibeMap.set(row['Username'].toString().trim().toLowerCase(), row); });
 
+        // Helper para forçar a tipagem como Texto de forma segura e evitar erro 400
+        const safeString = (val) => (val !== null && val !== undefined) ? String(val).trim() : '';
+
         const mergedData = dataFarol.map(farolRow => {
             const rawLogin = farolRow['LOGIN DA EXTRANET'];
             if (!rawLogin) return null; 
 
-            const login = rawLogin.toString().trim().toLowerCase();
+            const login = String(rawLogin).trim().toLowerCase();
             const unibeRow = unibeMap.get(login) || {};
             let nomeMissao = farolRow['MISSÃO'] || unibeRow['Missão'] || 'Sem Nome';
             
@@ -159,31 +161,39 @@ document.getElementById('btnProcMatriculas').addEventListener('click', async () 
             }
 
             let nomeCp = farolRow['NOME CP'] || '';
-            let dadosOficiais = mapaFranquias.get(nomeCp.toString().trim().toLowerCase()) || {};
+            let dadosOficiais = mapaFranquias.get(String(nomeCp).trim().toLowerCase()) || {};
             
             let dataConclusao = null;
             let dataBrutaConc = unibeRow['Data de Conclusão da Matrícula'];
-            if (dataBrutaConc) dataConclusao = (dataBrutaConc instanceof Date && !isNaN(dataBrutaConc)) ? dataBrutaConc.toISOString() : dataBrutaConc;
+            if (dataBrutaConc) dataConclusao = (dataBrutaConc instanceof Date && !isNaN(dataBrutaConc)) ? dataBrutaConc.toISOString() : String(dataBrutaConc);
 
             let dataInicio = null;
             let dataBrutaIni = unibeRow['Data da Matrícula'];
-            if (dataBrutaIni) dataInicio = (dataBrutaIni instanceof Date && !isNaN(dataBrutaIni)) ? dataBrutaIni.toISOString() : dataBrutaIni;
+            if (dataBrutaIni) dataInicio = (dataBrutaIni instanceof Date && !isNaN(dataBrutaIni)) ? dataBrutaIni.toISOString() : String(dataBrutaIni);
 
             return {
                 id_matricula: idMatricula,
                 competencia: compSelecionada,
-                missao: nomeMissao,
+                missao: safeString(nomeMissao),
                 login: login,
-                nome: farolRow['NOME COLABORADOR'] || unibeRow['Nome'],
-                cargo: farolRow['CARGO'],
-                tipo_cargo: farolRow['TIPO CARGO'],
-                nome_cp: nomeCp,
-                codigo_cp: dadosOficiais.codigo_cp || '',
-                cod_pdv: farolRow['CÓD PDV'] || '',
-                tipo_franquia: farolRow['TIPO FRANQUIA'] || '',
-                regional: dadosOficiais.regional || farolRow['REGIONAL'],
-                regional_macro: dadosOficiais.regional_macro || null,
-                status_matricula: unibeRow['Status Detalhado da Matrícula'] || 'NÃO INICIADO',
+                nome: safeString(farolRow['NOME COLABORADOR'] || unibeRow['Nome']),
+                cargo: safeString(farolRow['CARGO']),
+                tipo_cargo: safeString(farolRow['TIPO CARGO']),
+                nome_cp: safeString(nomeCp),
+                codigo_cp: safeString(dadosOficiais.codigo_cp || ''),
+                cod_pdv: safeString(farolRow['CÓD PDV'] || ''),
+                tipo_franquia: safeString(farolRow['TIPO FRANQUIA'] || ''),
+                regional: safeString(dadosOficiais.regional || farolRow['REGIONAL']),
+                regional_macro: safeString(dadosOficiais.regional_macro || null),
+                
+                // Campos blindados com toString()
+                estado_uf: safeString(farolRow['ESTADO (UF)'] || dadosOficiais.estado_uf),
+                carga_horaria: safeString(unibeRow['Carga Horária'] || unibeRow['Carga horária'] || farolRow['CARGA HORÁRIA']),
+                nome_consultor: safeString(dadosOficiais.nome_consultor || farolRow['CONSULTOR'] || farolRow['NOME CONSULTOR']),
+                nome_gerente_regional: safeString(dadosOficiais.nome_gerente_regional || farolRow['GERENTE REGIONAL'] || farolRow['NOME GERENTE REGIONAL']),
+                nome_coordenador: safeString(dadosOficiais.nome_coordenador || farolRow['COORDENADOR'] || farolRow['NOME COORDENADOR']),
+                
+                status_matricula: safeString(unibeRow['Status Detalhado da Matrícula'] || 'NÃO INICIADO'),
                 progresso_percentual: isNaN(progresso) ? 0 : progresso,
                 elegivel: farolRow['ELEGÍVEL'] === 1,
                 concluido: farolRow['CONCLUÍDO'] === 1,
@@ -329,7 +339,6 @@ window.atualizarComponentesDashboard = function() {
 function processarTabelaPrincipal() {
     const missoesMap = new Map();
     
-    // CORREÇÃO: Filtra o CSAT global com base na competência selecionada atualmente
     const compAtual = document.getElementById('dash-competencia').value;
     const csatFiltradoPorComp = (window.globalCsatData || []).filter(c => (c.competencia || 'Gestão de Pessoas') === compAtual);
 
