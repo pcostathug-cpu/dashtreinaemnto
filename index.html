@@ -12,6 +12,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
 </head>
 <body>
     <div class="app-layout">
@@ -28,9 +29,12 @@
                 <button class="nav-item" onclick="switchView('view-dashboard')" title="Painel de Aderência">
                     <i class="bi bi-pie-chart-fill"></i>
                 </button>
+                <button class="nav-item" onclick="switchView('view-analytics')" title="Inteligência de Dados">
+                    <i class="bi bi-lightbulb-fill"></i>
+                </button>
             </div>
             <div class="sidebar-footer">
-                <button class="nav-item" title="Configurações">
+                <button class="nav-item" onclick="switchView('view-settings')" title="Configurações">
                     <i class="bi bi-gear-fill"></i>
                 </button>
             </div>
@@ -42,9 +46,18 @@
             <!-- TELA 1: UPLOAD DE DADOS -->
             <section id="view-upload" class="view-section active">
                 <div class="upload-container">
-                    <div class="header-title" style="margin-bottom: 30px;">
+                    <div class="header-title" style="margin-bottom: 20px;">
                         <h1 style="color: var(--brand-dark); border-left: 4px solid var(--brand-accent); padding-left: 20px;">Integração de Dados</h1>
                         <p style="color: #64748b; padding-left: 20px; margin-top: 5px;">Atualize as bases de treinamento e satisfação da plataforma.</p>
+                    </div>
+
+                    <div class="bento-card" style="margin-bottom: 24px; display: flex; align-items: center; gap: 15px;">
+                        <div style="font-size: 24px; color: var(--brand-accent);"><i class="bi bi-tags-fill"></i></div>
+                        <div style="flex: 1;">
+                            <label style="display:block; font-weight: 700; color: var(--brand-dark); margin-bottom: 4px;">Competência de Destino:</label>
+                            <p style="font-size: 13px; color: #64748b;">Selecione para qual frente os dados abaixo serão enviados.</p>
+                        </div>
+                        <select id="upload-competencia" style="min-width: 250px; padding: 12px; font-size: 15px; border-color: var(--brand-dark);"></select>
                     </div>
                     
                     <div class="upload-grid">
@@ -82,7 +95,7 @@
                 </div>
             </section>
 
-            <!-- TELA 2: DASHBOARD -->
+            <!-- TELA 2: DASHBOARD DE ADERÊNCIA -->
             <section id="view-dashboard" class="view-section" style="display: none;">
                 <div class="dashboard-container" id="relatorio-export">
                     
@@ -92,13 +105,22 @@
                                 <img src="https://sfjrhiwhphlkozjktupi.supabase.co/storage/v1/object/sign/content/Artboard%2044@4x.png?token=eyJraWQiOiIxYzI3ZjY0Mi02ZWNhLTRmODgtOTVjOC1jZmM2MDljODM4NjUiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJjb250ZW50L0FydGJvYXJkIDQ0QDR4LnBuZyIsInNjb3BlIjoiZG93bmxvYWQiLCJpYXQiOjE3ODkwNTQ1MTQsImV4cCI6ODgxODg5NjgxMTR9.1PSUgrGDxHh3_bq-06sasqkO583Zf2XELl2MlOK7tu4" alt="Escola de Negócios FDR">
                             </div>
                             <div class="header-title">
-                                <h1 style="color: #fff;">Trilhas Gestão de Pessoas</h1>
+                                <h1 id="dash-title" style="color: #fff;">Trilhas Gestão de Pessoas</h1>
                                 <p style="color: var(--brand-bg);">Painel executivo de acompanhamento, aderência e satisfação</p>
                             </div>
                         </div>
-                        <button id="btnExport" class="btn-export" data-html2canvas-ignore="true">
-                            <i class="bi bi-camera"></i> Exportar Imagem
-                        </button>
+                        <div class="dash-master-filter" data-html2canvas-ignore="true">
+                            <select id="dash-competencia" class="select-master"></select>
+                            
+                            <!-- Botão de Filtros apenas com Ícone -->
+                            <button id="btnOpenFiltersDash" class="btn-export" title="Filtros Avançados" style="background: #fff; margin-right: 10px; border: 1px solid #e2e8f0; font-size: 18px; padding: 8px 12px;">
+                                <i class="bi bi-funnel-fill" style="color: var(--brand-accent);"></i>
+                            </button>
+
+                            <button id="btnExport" class="btn-export" title="Exportar Imagem">
+                                <i class="bi bi-camera"></i>
+                            </button>
+                        </div>
                     </header>
 
                     <div class="table-controls" data-html2canvas-ignore="true">
@@ -108,7 +130,7 @@
                         <label class="toggle-label"><input type="checkbox" id="toggleBackoffice" checked> % Backoffice</label>
                         <label class="toggle-label"><input type="checkbox" id="toggleMatriculados" checked> % Matriculados</label>
                         <label class="toggle-label"><input type="checkbox" id="toggleConclusao" checked> % Conclusão</label>
-                        <label class="toggle-label"><input type="checkbox" id="toggleCp" checked> % CP's</label>
+                        <label class="toggle-label"><input type="checkbox" id="toggleCp" checked> % CP's </label>
                         <label class="toggle-label"><input type="checkbox" id="toggleCsat" checked> % CSAT</label>
                     </div>
 
@@ -117,11 +139,11 @@
                             <thead>
                                 <tr>
                                     <th class="col-missao"><i class="bi bi-journal-text icon-header"></i> Missão</th>
-                                    <th class="col-lideranca"><i class="bi bi-person-workspace icon-header"></i> % Liderança</th>
-                                    <th class="col-backoffice"><i class="bi bi-headset icon-header"></i> % Backoffice</th>
+                                    <th class="col-lideranca"><i class="bi bi-person-workspace icon-header"></i> % Concluíntes Liderança</th>
+                                    <th class="col-backoffice"><i class="bi bi-headset icon-header"></i> % Concluítes Backoffice</th>
                                     <th class="col-matriculados"><i class="bi bi-play-circle-fill icon-header"></i> % Matriculados</th>
                                     <th class="col-conclusao"><i class="bi bi-bullseye icon-header"></i> % Conclusão</th>
-                                    <th class="dotted-col col-cp"><i class="bi bi-buildings icon-header"></i> % CP's c/ Concluinte</th>
+                                    <th class="dotted-col col-cp"><i class="bi bi-buildings icon-header"></i> % CP's com 1 Concluinte</th>
                                     <th class="highlight-col col-csat"><i class="bi bi-star-fill icon-header"></i> % CSAT</th>
                                 </tr>
                             </thead>
@@ -157,7 +179,139 @@
                     </div>
                 </div>
             </section>
+
+            <!-- TELA 3: INTELIGÊNCIA DE DADOS (ANALYTICS) -->
+            <section id="view-analytics" class="view-section" style="display: none;">
+                <div class="dashboard-container" style="position: relative;">
+                    
+                    <header class="top-header">
+                        <div class="header-left">
+                            <div class="header-title">
+                                <h1 style="color: #fff;"><i class="bi bi-lightbulb-fill" style="color: var(--brand-accent); margin-right: 10px;"></i> Inteligência e Comportamento</h1>
+                                <p style="color: var(--brand-bg);">Análise de engajamento, sazonalidade e performance geográfica.</p>
+                            </div>
+                        </div>
+                        
+                        <button id="btnOpenFilters" class="btn-export" style="background: #fff; color: var(--brand-dark);">
+                            <i class="bi bi-funnel-fill"></i> Filtros Avançados
+                        </button>
+                    </header>
+
+                    <div class="analytics-kpis">
+                        <div class="bento-card kpi-card">
+                            <p>Matrículas Iniciadas (Período)</p>
+                            <h2 id="kpi-matriculas">-</h2>
+                        </div>
+                        <div class="bento-card kpi-card">
+                            <p>Conclusões (Período)</p>
+                            <h2 id="kpi-aderencia" style="color: var(--brand-dark);">-</h2>
+                        </div>
+                        <div class="bento-card kpi-card">
+                            <p>Média de Avaliação</p>
+                            <h2 id="kpi-nota" style="color: #16a34a;">-</h2>
+                        </div>
+                    </div>
+
+                    <div class="bento-card chart-container" style="margin-top: 24px;">
+                        <h3><i class="bi bi-bar-chart-steps"></i> Estágio de Progresso (Trilha de Aprendizagem)</h3>
+                        <p style="font-size: 13px; color: #64748b; margin-bottom: 10px;">Distribuição atual de todos os elegíveis filtrados, divididos por percentual de avanço.</p>
+                        <div id="chart-progresso" style="width: 100%; height: 120px;"></div>
+                    </div>
+
+                    <div class="analytics-grid" style="grid-template-columns: repeat(2, 1fr);">
+                        <div class="bento-card chart-container">
+                            <h3><i class="bi bi-geo-alt-fill"></i> Performance Geográfica</h3>
+                            <div id="chart-mapa" style="width: 100%; height: 400px;"></div>
+                        </div>
+                        <div class="bento-card chart-container">
+                            <h3><i class="bi bi-funnel-fill"></i> Funil de Engajamento</h3>
+                            <div id="chart-funil" style="width: 100%; height: 400px;"></div>
+                        </div>
+                        <div class="bento-card chart-container" style="grid-column: span 2;">
+                            <h3><i class="bi bi-calendar-week-fill"></i> Ritmo de Consumo (Dias com mais conclusões)</h3>
+                            <div id="chart-heatmap" style="width: 100%; height: 250px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TELA 4: CONFIGURAÇÕES -->
+            <section id="view-settings" class="view-section" style="display: none;">
+                <div class="upload-container">
+                    <div class="header-title" style="margin-bottom: 30px;">
+                        <h1 style="color: var(--brand-dark); border-left: 4px solid var(--brand-accent); padding-left: 20px;">Configurações do Hub</h1>
+                        <p style="color: #64748b; padding-left: 20px; margin-top: 5px;">Gerencie as competências e estruturas do sistema.</p>
+                    </div>
+                    
+                    <div class="bento-card">
+                        <h3><i class="bi bi-tags-fill" style="color: var(--brand-accent);"></i> Gerenciar Competências</h3>
+                        <p style="color: #64748b; font-size: 14px; margin-top: 5px;">Cadastre novas frentes educacionais para liberar o upload e os dashboards segmentados.</p>
+                        
+                        <div class="config-input-group mt-3">
+                            <input type="text" id="new-comp-name" placeholder="Nome da nova competência (Ex: Liderança do Futuro)">
+                            <button id="btn-add-comp" class="btn-primary"><i class="bi bi-plus-lg"></i> Adicionar</button>
+                        </div>
+                        <div id="statusConfig" class="status-msg"></div>
+
+                        <ul id="list-competencias" class="settings-list mt-3"></ul>
+                    </div>
+                </div>
+            </section>
         </main>
+    </div>
+
+    <!-- GAVETA DE FILTROS LATERAL -->
+    <div id="filter-drawer" class="filter-drawer">
+        <div class="drawer-header">
+            <h2>Filtros Analíticos</h2>
+            <button id="btnCloseFilters" class="btn-close-modal"><i class="bi bi-x-lg"></i></button>
+        </div>
+        <div class="drawer-body">
+            
+            <label>1. Competência Alvo:</label>
+            <select id="filtro-ana-competencia" class="drawer-select"></select>
+
+            <label class="mt-3">2. Período Analisado:</label>
+            <div style="display: flex; gap: 10px;">
+                <div style="flex: 1;">
+                    <span style="font-size: 11px; color: #64748b;">De:</span>
+                    <input type="date" id="filtro-data-ini" class="drawer-select" style="margin-bottom: 0;">
+                </div>
+                <div style="flex: 1;">
+                    <span style="font-size: 11px; color: #64748b;">Até:</span>
+                    <input type="date" id="filtro-data-fim" class="drawer-select" style="margin-bottom: 0;">
+                </div>
+            </div>
+
+            <label class="mt-3">3. Missão (Treinamento):</label>
+            <div id="filtro-missao-ana" class="checkbox-group" style="max-height: 150px; overflow-y: auto;"></div>
+            
+            <label class="mt-3">4. Tipo de Cargo:</label>
+            <div id="filtro-tipo-cargo" class="checkbox-group" style="max-height: 150px; overflow-y: auto;"></div>
+
+            <label class="mt-3">5. Cargo Específico:</label>
+            <div id="filtro-cargo" class="checkbox-group" style="max-height: 150px; overflow-y: auto;"></div>
+
+            <label class="mt-3">6. Tipo de Franquia:</label>
+            <div id="filtro-tipo-franquia" class="checkbox-group" style="max-height: 150px; overflow-y: auto;"></div>
+
+            <label class="mt-3">7. Estado (UF):</label>
+            <div id="filtro-estado" class="checkbox-group" style="max-height: 150px; overflow-y: auto;"></div>
+
+            <label class="mt-3">8. CP:</label>
+            <div id="filtro-cp" class="checkbox-group" style="max-height: 150px; overflow-y: auto;"></div>
+
+            <label class="mt-3">9. Código PDV:</label>
+            <div id="filtro-pdv" class="checkbox-group" style="max-height: 150px; overflow-y: auto;"></div>
+            
+            <label class="mt-3">10. Consultor Comercial:</label>
+            <div id="filtro-consultor" class="checkbox-group" style="max-height: 150px; overflow-y: auto;"></div>
+
+        </div>
+        <div class="drawer-footer">
+            <button id="btnLimparFiltros" class="btn-outline" style="width: 100%;">Limpar Seleção</button>
+            <button id="btnAplicarFiltros" class="btn-primary" style="width: 100%; margin-top: 10px; justify-content: center;">Aplicar e Recalcular</button>
+        </div>
     </div>
 
     <!-- Modal CSAT -->
@@ -167,8 +321,6 @@
                 <h2 style="color: var(--brand-dark);">Todos os Feedbacks</h2>
                 <button class="btn-close-modal" id="btnCloseModal"><i class="bi bi-x-lg"></i></button>
             </div>
-            
-            <!-- NOVOS FILTROS DO MODAL -->
             <div class="modal-filters">
                 <select id="modal-filtro-missao">
                     <option value="todos">Todos os Treinamentos</option>
@@ -184,11 +336,11 @@
                     <option value="1">Nota 1</option>
                 </select>
             </div>
-
             <div class="modal-body" id="modal-comments-list"></div>
         </div>
     </div>
 
     <script src="app.js"></script>
+    <script src="analytics.js"></script>
 </body>
 </html>

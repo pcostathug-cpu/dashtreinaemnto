@@ -5,8 +5,24 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// 2. Navegação SPA (Sidebar)
-function switchView(viewId) {
+window.listaCompetencias = [];
+window.globalRawData = [];
+window.globalCsatData = [];
+
+// Variáveis dinâmicas pós-filtro (Usadas pelo Dashboard)
+let rawData = []; 
+let csatData = []; 
+let totalCPsDistintos = 0;
+
+// ==========================================
+// 2. INICIALIZAÇÃO E NAVEGAÇÃO
+// ==========================================
+document.addEventListener('DOMContentLoaded', async () => {
+    await carregarCompetencias();
+    window.switchView('view-dashboard');
+});
+
+window.switchView = function(viewId) {
     document.querySelectorAll('.view-section').forEach(el => el.style.display = 'none');
     document.getElementById(viewId).style.display = 'block';
     
@@ -18,6 +34,7 @@ function switchView(viewId) {
         navItems[1].classList.add('active');
         initDashboard(); 
     }
+    if(viewId === 'view-settings') navItems[3].classList.add('active'); 
 }
 
 function readExcel(file) {
@@ -37,19 +54,75 @@ function readExcel(file) {
 }
 
 // ==========================================
-// MÓDULO 1: UPLOAD FAROL + UNIBÊ
+// 3. CONFIGURAÇÕES: GERENCIAR COMPETÊNCIAS
+// ==========================================
+async function carregarCompetencias() {
+    try {
+        const { data, error } = await supabaseClient.from('competencias').select('*').order('nome', { ascending: true });
+        if (error) throw error;
+        window.listaCompetencias = data || []; 
+        
+        atualizarDropdownsCompetencia();
+        renderizarListaConfiguracoes();
+    } catch (err) {
+        console.error("Erro ao carregar competências:", err);
+    }
+}
+
+function atualizarDropdownsCompetencia() {
+    const selUpload = document.getElementById('upload-competencia');
+    const selDash = document.getElementById('dash-competencia');
+    const selAna = document.getElementById('filtro-ana-competencia');
+    
+    let html = '';
+    window.listaCompetencias.forEach(c => {
+        html += `<option value="${c.nome}">${c.nome}</option>`;
+    });
+
+    if(selUpload) selUpload.innerHTML = html;
+    if(selDash) selDash.innerHTML = html;
+    if(selAna) selAna.innerHTML = html; 
+}
+
+function renderizarListaConfiguracoes() {
+    const ul = document.getElementById('list-competencias');
+    if(ul) ul.innerHTML = window.listaCompetencias.map(c => `<li><i class="bi bi-tag-fill"></i> ${c.nome}</li>`).join('');
+}
+
+document.getElementById('btn-add-comp').addEventListener('click', async () => {
+    const input = document.getElementById('new-comp-name');
+    const status = document.getElementById('statusConfig');
+    const nome = input.value.trim();
+
+    if (!nome) return;
+
+    try {
+        status.style.color = 'blue'; status.innerText = 'Salvando...';
+        const { error } = await supabaseClient.from('competencias').insert([{ nome }]);
+        if (error) throw error;
+
+        input.value = '';
+        status.style.color = 'green'; status.innerText = 'Competência adicionada!';
+        await carregarCompetencias();
+        setTimeout(() => status.innerText = '', 3000);
+    } catch (err) {
+        status.style.color = 'red'; status.innerText = 'Erro ao salvar. Verifique se o nome já existe.';
+    }
+});
+
+// ==========================================
+// 4. UPLOAD DE DADOS
 // ==========================================
 document.getElementById('btnProcMatriculas').addEventListener('click', async () => {
+    const compSelecionada = document.getElementById('upload-competencia').value;
+    if (!compSelecionada) { alert("Cadastre ou selecione uma competência."); return; }
+
     const fileFarol = document.getElementById('fileFarol').files[0];
     const fileUnibe = document.getElementById('fileUnibe').files[0];
     const statusDiv = document.getElementById('statusMatriculas');
     const btn = document.getElementById('btnProcMatriculas');
 
-    if (!fileFarol || !fileUnibe) {
-        statusDiv.style.color = 'red';
-        statusDiv.innerText = "Selecione os dois arquivos.";
-        return;
-    }
+    if (!fileFarol || !fileUnibe) { statusDiv.style.color = 'red'; statusDiv.innerText = "Selecione os dois arquivos."; return; }
 
     btn.disabled = true;
     statusDiv.style.color = '#2563eb';
@@ -61,14 +134,10 @@ document.getElementById('btnProcMatriculas').addEventListener('click', async () 
 
         const { data: franquiasData } = await supabaseClient.from('registro_franquias').select('*');
         const mapaFranquias = new Map();
-        (franquiasData||[]).forEach(item => {
-            if (item.nome_cp) mapaFranquias.set(item.nome_cp.trim().toLowerCase(), item);
-        });
+        (franquiasData||[]).forEach(item => { if (item.nome_cp) mapaFranquias.set(item.nome_cp.trim().toLowerCase(), item); });
 
         const unibeMap = new Map();
-        dataUnibe.forEach(row => {
-            if (row['Username']) unibeMap.set(row['Username'].toString().trim().toLowerCase(), row);
-        });
+        dataUnibe.forEach(row => { if (row['Username']) unibeMap.set(row['Username'].toString().trim().toLowerCase(), row); });
 
         const mergedData = dataFarol.map(farolRow => {
             const rawLogin = farolRow['LOGIN DA EXTRANET'];
@@ -76,9 +145,11 @@ document.getElementById('btnProcMatriculas').addEventListener('click', async () 
 
             const login = rawLogin.toString().trim().toLowerCase();
             const unibeRow = unibeMap.get(login) || {};
-
             let nomeMissao = farolRow['MISSÃO'] || unibeRow['Missão'] || 'Sem Nome';
-            let idMatricula = `${login}_${nomeMissao.replace(/\s+/g, '').toLowerCase()}`;
+            
+            const compKey = compSelecionada.replace(/\s+/g, '').toLowerCase();
+            const missaoKey = nomeMissao.replace(/\s+/g, '').toLowerCase();
+            let idMatricula = `${login}_${compKey}_${missaoKey}`;
 
             let progresso = unibeRow['Progresso'] ? parseFloat(unibeRow['Progresso'].toString().replace('%', '')) : 0;
             let nota = null; 
@@ -87,35 +158,36 @@ document.getElementById('btnProcMatriculas').addEventListener('click', async () 
                 if (!isNaN(notaNumero)) nota = notaNumero;
             }
 
-            let dataConclusao = null;
-            let dataBruta = unibeRow['Data de Conclusão da Matrícula'];
-            if (dataBruta) {
-                dataConclusao = (dataBruta instanceof Date && !isNaN(dataBruta)) ? dataBruta.toISOString() : dataBruta;
-            }
-
             let nomeCp = farolRow['NOME CP'] || '';
             let dadosOficiais = mapaFranquias.get(nomeCp.toString().trim().toLowerCase()) || {};
+            
+            let dataConclusao = null;
+            let dataBrutaConc = unibeRow['Data de Conclusão da Matrícula'];
+            if (dataBrutaConc) dataConclusao = (dataBrutaConc instanceof Date && !isNaN(dataBrutaConc)) ? dataBrutaConc.toISOString() : dataBrutaConc;
+
+            let dataInicio = null;
+            let dataBrutaIni = unibeRow['Data da Matrícula'];
+            if (dataBrutaIni) dataInicio = (dataBrutaIni instanceof Date && !isNaN(dataBrutaIni)) ? dataBrutaIni.toISOString() : dataBrutaIni;
 
             return {
                 id_matricula: idMatricula,
+                competencia: compSelecionada,
                 missao: nomeMissao,
                 login: login,
                 nome: farolRow['NOME COLABORADOR'] || unibeRow['Nome'],
                 cargo: farolRow['CARGO'],
                 tipo_cargo: farolRow['TIPO CARGO'],
                 nome_cp: nomeCp,
-                estado_uf: farolRow['ESTADO (UF)'],
-                codigo_cp: dadosOficiais.codigo_cp || farolRow['CÓD PDV'],
+                codigo_cp: dadosOficiais.codigo_cp || '',
+                cod_pdv: farolRow['CÓD PDV'] || '',
+                tipo_franquia: farolRow['TIPO FRANQUIA'] || '',
                 regional: dadosOficiais.regional || farolRow['REGIONAL'],
                 regional_macro: dadosOficiais.regional_macro || null,
-                nome_consultor: dadosOficiais.nome_consultor || farolRow['CONSULTOR'],
-                nome_gerente_regional: dadosOficiais.nome_gerente_regional || farolRow['GERENTE REGIONAL'],
-                nome_coordenador: dadosOficiais.nome_coordenador || null,
                 status_matricula: unibeRow['Status Detalhado da Matrícula'] || 'NÃO INICIADO',
                 progresso_percentual: isNaN(progresso) ? 0 : progresso,
-                carga_horaria_min: unibeRow['Carga horária (min)'] || unibeRow['Carga Horaria (Min)'] || farolRow['CARGA HORÁRIA'],
                 elegivel: farolRow['ELEGÍVEL'] === 1,
                 concluido: farolRow['CONCLUÍDO'] === 1,
+                data_inicio: dataInicio,
                 data_conclusao: dataConclusao,
                 media_notas: nota
             };
@@ -128,36 +200,27 @@ document.getElementById('btnProcMatriculas').addEventListener('click', async () 
         const { error } = await supabaseClient.from('treinamentos_lideranca').upsert(finalData, { onConflict: 'id_matricula' });
         if (error) throw error;
 
-        statusDiv.style.color = 'green';
-        statusDiv.innerText = "Matrículas sincronizadas com sucesso!";
-        document.getElementById('fileFarol').value = '';
-        document.getElementById('fileUnibe').value = '';
+        statusDiv.style.color = 'green'; statusDiv.innerText = "Matrículas sincronizadas!";
+        document.getElementById('fileFarol').value = ''; document.getElementById('fileUnibe').value = '';
     } catch (error) {
         console.error(error);
-        statusDiv.style.color = 'red';
-        statusDiv.innerText = "Erro ao processar. Verifique o console.";
+        statusDiv.style.color = 'red'; statusDiv.innerText = "Erro ao processar.";
     } finally {
         btn.disabled = false;
     }
 });
 
-// ==========================================
-// MÓDULO 2: UPLOAD CSAT 
-// ==========================================
 document.getElementById('btnProcCsat').addEventListener('click', async () => {
+    const compSelecionada = document.getElementById('upload-competencia').value;
+    if (!compSelecionada) { alert("Cadastre ou selecione uma competência."); return; }
+
     const fileCsat = document.getElementById('fileCsat').files[0];
     const statusDiv = document.getElementById('statusCsat');
     const btn = document.getElementById('btnProcCsat');
 
-    if (!fileCsat) {
-        statusDiv.style.color = 'red';
-        statusDiv.innerText = "Selecione o arquivo de CSAT.";
-        return;
-    }
+    if (!fileCsat) { statusDiv.style.color = 'red'; statusDiv.innerText = "Selecione o arquivo de CSAT."; return; }
 
-    btn.disabled = true;
-    statusDiv.style.color = '#16a34a';
-    statusDiv.innerText = "Lendo CSAT...";
+    btn.disabled = true; statusDiv.style.color = '#16a34a'; statusDiv.innerText = "Lendo CSAT...";
 
     try {
         const dataCsat = await readExcel(fileCsat);
@@ -168,20 +231,20 @@ document.getElementById('btnProcCsat').addEventListener('click', async () => {
             const missao = (row['Nome'] || row['Nome do Módulo'] || '').toString().trim();
             if(!user || !missao) return;
             
-            const key = `${user}_${missao}`;
+            const compKey = compSelecionada.replace(/\s+/g, '').toLowerCase();
+            const missaoKey = missao.replace(/\s+/g, '').toLowerCase();
+            const key = `${user}_${compKey}_${missaoKey}`;
+
             if(!csatMap.has(key)) {
-                csatMap.set(key, { username: user, missao: missao, nota: null, comentario: null, chave_unica: key });
+                csatMap.set(key, { username: user, missao: missao, competencia: compSelecionada, nota: null, comentario: null, chave_unica: key });
             }
             const entry = csatMap.get(key);
             
             const questao = (row['Questão'] || '').toString().toLowerCase();
             const resposta = (row['Texto da Resposta'] || '').toString();
             
-            if (questao.includes('escala')) {
-                entry.nota = parseInt(resposta.split('-')[0].trim());
-            } else if (questao.includes('motivo')) {
-                entry.comentario = resposta;
-            }
+            if (questao.includes('escala')) entry.nota = parseInt(resposta.split('-')[0].trim());
+            else if (questao.includes('motivo')) entry.comentario = resposta;
         });
 
         const csatFinal = Array.from(csatMap.values()).filter(c => c.nota !== null);
@@ -189,63 +252,89 @@ document.getElementById('btnProcCsat').addEventListener('click', async () => {
         if (csatFinal.length > 0) {
             const { error } = await supabaseClient.from('avaliacoes_csat').upsert(csatFinal, { onConflict: 'chave_unica' });
             if (error) throw error;
-            
-            statusDiv.style.color = 'green';
-            statusDiv.innerText = "CSAT atualizado com sucesso!";
+            statusDiv.style.color = 'green'; statusDiv.innerText = "CSAT atualizado!";
             document.getElementById('fileCsat').value = '';
         } else {
-            statusDiv.style.color = '#f59e0b';
-            statusDiv.innerText = "Nenhuma nota encontrada no arquivo.";
+            statusDiv.style.color = '#f59e0b'; statusDiv.innerText = "Nenhuma nota encontrada.";
         }
     } catch (error) {
-        console.error(error);
-        statusDiv.style.color = 'red';
-        statusDiv.innerText = "Erro ao processar CSAT.";
+        statusDiv.style.color = 'red'; statusDiv.innerText = "Erro ao processar CSAT.";
     } finally {
         btn.disabled = false;
     }
 });
 
 // ==========================================
-// MÓDULO 3: DASHBOARD LOGIC
+// 5. DASHBOARD (Sincronizado com Analytics)
 // ==========================================
-let rawData = [];
-let csatData = [];
-let totalCPsDistintos = 0;
-
 async function initDashboard() {
     try {
-        const [resTreinos, resCsat] = await Promise.all([
-            supabaseClient.from('treinamentos_lideranca').select('*').limit(20000),
-            supabaseClient.from('avaliacoes_csat').select('*').limit(5000)
-        ]);
-        if (resTreinos.error) throw resTreinos.error;
-        if (resCsat.error) throw resCsat.error;
+        if (!window.globalRawData || window.globalRawData.length === 0) {
+            const [resTreinos, resCsat] = await Promise.all([
+                supabaseClient.from('treinamentos_lideranca').select('*').limit(30000),
+                supabaseClient.from('avaliacoes_csat').select('*').limit(10000)
+            ]);
+            
+            window.globalRawData = resTreinos.data || [];
+            window.globalCsatData = resCsat.data || [];
+        }
         
-        rawData = resTreinos.data || [];
-        csatData = resCsat.data || [];
+        if(window.popularGavetaFiltros) window.popularGavetaFiltros();
         
-        const uniqueCPs = new Set(rawData.map(row => row.codigo_cp).filter(Boolean));
-        totalCPsDistintos = uniqueCPs.size;
+        const dashComp = document.getElementById('dash-competencia');
+        const anaComp = document.getElementById('filtro-ana-competencia');
+        if (dashComp && dashComp.options.length > 0 && anaComp) {
+            anaComp.value = dashComp.value;
+        }
 
-        processarTabelaPrincipal();
-        popularFiltrosDashboard();
-        popularFiltrosModalCsat();
-        processarRanking('todos');
-        renderizarFeedbacksResumo();
-        filtrarModalFeedbacks();
+        if (window.aplicarFiltrosGlobais) {
+            window.aplicarFiltrosGlobais();
+        } else {
+            window.atualizarComponentesDashboard(); 
+        }
     } catch (error) {
         console.error("Erro no Dashboard:", error);
     }
 }
 
+document.getElementById('dash-competencia').addEventListener('change', (e) => {
+    const anaComp = document.getElementById('filtro-ana-competencia');
+    if (anaComp) anaComp.value = e.target.value;
+    
+    if (window.limparFiltrosCascata) window.limparFiltrosCascata(true); 
+    if (window.popularGavetaFiltros) window.popularGavetaFiltros();
+    if (window.aplicarFiltrosGlobais) window.aplicarFiltrosGlobais();
+});
+
+window.atualizarComponentesDashboard = function() {
+    const compSelecionada = document.getElementById('dash-competencia').value;
+    document.getElementById('dash-title').innerText = `Trilhas ${compSelecionada || 'Carregando...'}`;
+
+    if(!compSelecionada) return;
+
+    rawData = window.filteredRawData || [];
+    csatData = window.filteredCsatData || [];
+    
+    const uniqueCPs = new Set(rawData.map(row => row.codigo_cp).filter(Boolean));
+    totalCPsDistintos = uniqueCPs.size;
+
+    processarTabelaPrincipal();
+    popularFiltrosDashboard();
+    processarRanking('todos');
+    renderizarFeedbacksResumo();
+    popularFiltrosModalCsat();
+    filtrarModalFeedbacks();
+}
+
 function processarTabelaPrincipal() {
     const missoesMap = new Map();
     
-    csatData.forEach(c => {
-        if (!missoesMap.has(c.missao)) {
-            missoesMap.set(c.missao, { nome: c.missao, liderancaElegivel: 0, liderancaConcluido: 0, backofficeElegivel: 0, backofficeConcluido: 0, matriculados: 0, cpsConcluidos: new Set(), csatPromoters: 0, csatTotal: 0 });
-        }
+    // CORREÇÃO: Filtra o CSAT global com base na competência selecionada atualmente
+    const compAtual = document.getElementById('dash-competencia').value;
+    const csatFiltradoPorComp = (window.globalCsatData || []).filter(c => (c.competencia || 'Gestão de Pessoas') === compAtual);
+
+    csatFiltradoPorComp.forEach(c => {
+        if (!missoesMap.has(c.missao)) missoesMap.set(c.missao, { nome: c.missao, liderancaElegivel: 0, liderancaConcluido: 0, backofficeElegivel: 0, backofficeConcluido: 0, matriculados: 0, cpsConcluidos: new Set(), csatPromoters: 0, csatTotal: 0 });
         const m = missoesMap.get(c.missao);
         m.csatTotal++;
         if (c.nota >= 4) m.csatPromoters++;
@@ -253,9 +342,7 @@ function processarTabelaPrincipal() {
 
     rawData.forEach(row => {
         const missao = row.missao || 'Sem Nome';
-        if (!missoesMap.has(missao)) {
-            missoesMap.set(missao, { nome: missao, liderancaElegivel: 0, liderancaConcluido: 0, backofficeElegivel: 0, backofficeConcluido: 0, matriculados: 0, cpsConcluidos: new Set(), csatPromoters: 0, csatTotal: 0 });
-        }
+        if (!missoesMap.has(missao)) missoesMap.set(missao, { nome: missao, liderancaElegivel: 0, liderancaConcluido: 0, backofficeElegivel: 0, backofficeConcluido: 0, matriculados: 0, cpsConcluidos: new Set(), csatPromoters: 0, csatTotal: 0 });
         
         const stats = missoesMap.get(missao);
         const isLider = (row.tipo_cargo || '').toLowerCase().includes('lider');
@@ -265,15 +352,9 @@ function processarTabelaPrincipal() {
             else { stats.backofficeElegivel++; if (row.concluido) stats.backofficeConcluido++; }
             
             const status = (row.status_matricula || '').toString().toUpperCase().trim();
-            const isIniciado = row.concluido || 
-                               row.progresso_percentual > 0 || 
-                               (status !== 'NÃO INICIADO' && status !== 'NOT_STARTED' && status !== '');
-                               
-            if (isIniciado) {
-                stats.matriculados++;
-            }
+            const isIniciado = row.concluido || row.progresso_percentual > 0 || (status !== 'NÃO INICIADO' && status !== 'NOT_STARTED' && status !== '');
+            if (isIniciado) stats.matriculados++;
         }
-        
         if (row.concluido && row.codigo_cp) stats.cpsConcluidos.add(row.codigo_cp);
     });
 
@@ -289,13 +370,9 @@ function renderizarTabela(dadosMissoes) {
     let allCpsConcluidosGeral = new Set();
 
     dadosMissoes.forEach(missao => {
-        totLidEleg += missao.liderancaElegivel; 
-        totLidConc += missao.liderancaConcluido;
-        totBackEleg += missao.backofficeElegivel; 
-        totBackConc += missao.backofficeConcluido;
-        totMatriculados += missao.matriculados;
-        totCsatPromoters += missao.csatPromoters; 
-        totCsatGeral += missao.csatTotal;
+        totLidEleg += missao.liderancaElegivel; totLidConc += missao.liderancaConcluido;
+        totBackEleg += missao.backofficeElegivel; totBackConc += missao.backofficeConcluido;
+        totMatriculados += missao.matriculados; totCsatPromoters += missao.csatPromoters; totCsatGeral += missao.csatTotal;
         missao.cpsConcluidos.forEach(cp => allCpsConcluidosGeral.add(cp));
 
         const pcLid = missao.liderancaElegivel ? ((missao.liderancaConcluido / missao.liderancaElegivel) * 100).toFixed(2) : '-';
@@ -310,30 +387,12 @@ function renderizarTabela(dadosMissoes) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="missao-nome col-missao">${missao.nome}</td>
-            <td class="col-lideranca">
-                <span class="big-percent">${pcLid !== '-' ? pcLid + '%' : '-'}</span>
-                ${missao.liderancaElegivel > 0 ? `<span class="small-count">${missao.liderancaConcluido} | ${missao.liderancaElegivel}</span>` : ''}
-            </td>
-            <td class="col-backoffice">
-                <span class="big-percent">${pcBack !== '-' ? pcBack + '%' : '-'}</span>
-                ${missao.backofficeElegivel > 0 ? `<span class="small-count">${missao.backofficeConcluido} | ${missao.backofficeElegivel}</span>` : ''}
-            </td>
-            <td class="col-matriculados">
-                <span class="big-percent">${pcMatriculados !== '-' ? pcMatriculados + '%' : '-'}</span>
-                ${totElegGeral > 0 ? `<span class="small-count">${missao.matriculados} | ${totElegGeral}</span>` : ''}
-            </td>
-            <td class="col-conclusao">
-                <span class="big-percent">${pcGeral}%</span>
-                <span class="small-count">${totConcGeral} | ${totElegGeral}</span>
-            </td>
-            <td class="dotted-col col-cp">
-                <span class="big-percent">${pcCp}%</span>
-                <span class="small-count">${missao.cpsConcluidos.size} | ${totalCPsDistintos} CP's</span>
-            </td>
-            <td class="highlight-col col-csat">
-                <span class="big-percent" style="color:#16a34a">${pcCsat !== '-' ? pcCsat + '%' : '-'}</span>
-                <span class="small-count">${missao.csatTotal} avaliações</span>
-            </td>
+            <td class="col-lideranca"><span class="big-percent">${pcLid !== '-' ? pcLid + '%' : '-'}</span>${missao.liderancaElegivel > 0 ? `<span class="small-count">${missao.liderancaConcluido} | ${missao.liderancaElegivel}</span>` : ''}</td>
+            <td class="col-backoffice"><span class="big-percent">${pcBack !== '-' ? pcBack + '%' : '-'}</span>${missao.backofficeElegivel > 0 ? `<span class="small-count">${missao.backofficeConcluido} | ${missao.backofficeElegivel}</span>` : ''}</td>
+            <td class="col-matriculados"><span class="big-percent">${pcMatriculados !== '-' ? pcMatriculados + '%' : '-'}</span>${totElegGeral > 0 ? `<span class="small-count">${missao.matriculados} | ${totElegGeral}</span>` : ''}</td>
+            <td class="col-conclusao"><span class="big-percent">${pcGeral}%</span><span class="small-count">${totConcGeral} | ${totElegGeral}</span></td>
+            <td class="dotted-col col-cp"><span class="big-percent">${pcCp}%</span><span class="small-count">${missao.cpsConcluidos.size} | ${totalCPsDistintos} CP's</span></td>
+            <td class="highlight-col col-csat"><span class="big-percent" style="color:#16a34a">${pcCsat !== '-' ? pcCsat + '%' : '-'}</span><span class="small-count">${missao.csatTotal} avaliações</span></td>
         `;
         tbody.appendChild(tr);
     });
@@ -401,42 +460,35 @@ function processarRanking(missaoFiltro) {
     });
 }
 
-// ==========================================
-// MÓDULO 4: FEEDBACKS CSAT EQUILIBRADOS
-// ==========================================
 function renderCardFeedback(c) {
-    return `
-        <div class="feedback-card">
-            <div class="feedback-header"><span class="feedback-mission">${c.missao}</span><span class="feedback-score"><i class="bi bi-star-fill"></i> ${c.nota}</span></div>
-            <p class="feedback-text">"${c.comentario}"</p>
-        </div>`;
+    return `<div class="feedback-card"><div class="feedback-header"><span class="feedback-mission">${c.missao}</span><span class="feedback-score"><i class="bi bi-star-fill"></i> ${c.nota}</span></div><p class="feedback-text">"${c.comentario}"</p></div>`;
 }
 
 function renderizarFeedbacksResumo() {
     const listMain = document.getElementById('feedbacks-list');
-    const comentados = csatData.filter(c => c.comentario && c.comentario.trim().length > 3);
+    const compAtual = document.getElementById('dash-competencia').value;
+    const csatBase = (window.globalCsatData || []).filter(c => (c.competencia || 'Gestão de Pessoas') === compAtual);
 
-    // Separa a base entre Elogios (4-5) e Oportunidades (1-3)
+    const comentados = csatBase.filter(c => c.comentario && c.comentario.trim().length > 3);
     const elogios = comentados.filter(c => c.nota >= 4).sort((a,b) => b.nota - a.nota);
-    // Ordena as oportunidades de forma crescente para priorizar as notas mais baixas (1, 2)
     const oportunidades = comentados.filter(c => c.nota < 4).sort((a,b) => a.nota - b.nota);
 
-    // Lógica de Equilíbrio: Até 3 elogios, Até 2 oportunidades (compensando se faltar)
     let qtdElogios = Math.min(3, elogios.length);
     let qtdOports = Math.min(2, oportunidades.length);
-
     if (qtdElogios < 3) qtdOports = Math.min(oportunidades.length, 5 - qtdElogios);
     if (qtdOports < 2) qtdElogios = Math.min(elogios.length, 5 - qtdOports);
 
     const top5 = [...elogios.slice(0, qtdElogios), ...oportunidades.slice(0, qtdOports)];
-
     listMain.innerHTML = top5.length > 0 ? top5.map(renderCardFeedback).join('') : '<p style="color:#64748b; font-size:14px;">Sem comentários no momento.</p>';
 }
 
 function popularFiltrosModalCsat() {
     const filtroMissao = document.getElementById('modal-filtro-missao');
     filtroMissao.innerHTML = '<option value="todos">Todos os Treinamentos</option>';
-    const missoesUnicas = [...new Set(csatData.map(r => r.missao).filter(Boolean))];
+    const compAtual = document.getElementById('dash-competencia').value;
+    const csatBase = (window.globalCsatData || []).filter(c => (c.competencia || 'Gestão de Pessoas') === compAtual);
+
+    const missoesUnicas = [...new Set(csatBase.map(r => r.missao).filter(Boolean))];
     missoesUnicas.forEach(missao => {
         const option = document.createElement('option');
         option.value = missao; option.textContent = missao;
@@ -448,27 +500,24 @@ function filtrarModalFeedbacks() {
     const listModal = document.getElementById('modal-comments-list');
     const missaoSel = document.getElementById('modal-filtro-missao').value;
     const notaSel = document.getElementById('modal-filtro-nota').value;
+    const compAtual = document.getElementById('dash-competencia').value;
+    const csatBase = (window.globalCsatData || []).filter(c => (c.competencia || 'Gestão de Pessoas') === compAtual);
 
-    let filtrados = csatData.filter(c => c.comentario && c.comentario.trim().length > 3);
-
+    let filtrados = csatBase.filter(c => c.comentario && c.comentario.trim().length > 3);
     if (missaoSel !== 'todos') filtrados = filtrados.filter(c => c.missao === missaoSel);
-    
     if (notaSel !== 'todos') {
         if (notaSel === 'positivos') filtrados = filtrados.filter(c => c.nota >= 4);
         else if (notaSel === 'oportunidades') filtrados = filtrados.filter(c => c.nota < 4);
         else filtrados = filtrados.filter(c => c.nota == parseInt(notaSel));
     }
 
-    // No modal, a ordem padrão é decrescente
     filtrados.sort((a,b) => b.nota - a.nota);
-
-    listModal.innerHTML = filtrados.length > 0 ? filtrados.map(renderCardFeedback).join('') : '<p style="color:#64748b;">Nenhum feedback encontrado para estes filtros.</p>';
+    listModal.innerHTML = filtrados.length > 0 ? filtrados.map(renderCardFeedback).join('') : '<p style="color:#64748b;">Nenhum feedback encontrado.</p>';
 }
 
 document.getElementById('modal-filtro-missao').addEventListener('change', filtrarModalFeedbacks);
 document.getElementById('modal-filtro-nota').addEventListener('change', filtrarModalFeedbacks);
 
-// --- CONTROLE DE COLUNAS ---
 const toggleColunas = [
     { id: 'toggleMissao', cls: 'hide-missao' },
     { id: 'toggleLideranca', cls: 'hide-lideranca' },
@@ -481,14 +530,9 @@ const toggleColunas = [
 
 toggleColunas.forEach(col => {
     const el = document.getElementById(col.id);
-    if(el) {
-        el.addEventListener('change', (e) => {
-            document.getElementById('tabela-aderencia').classList.toggle(col.cls, !e.target.checked);
-        });
-    }
+    if(el) { el.addEventListener('change', (e) => { document.getElementById('tabela-aderencia').classList.toggle(col.cls, !e.target.checked); }); }
 });
 
-// --- MODAIS E EXPORTAÇÃO ---
 document.getElementById('btnOpenModal').addEventListener('click', () => document.getElementById('modalComments').classList.add('active'));
 document.getElementById('btnCloseModal').addEventListener('click', () => document.getElementById('modalComments').classList.remove('active'));
 
